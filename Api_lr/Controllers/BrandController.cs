@@ -23,6 +23,20 @@ namespace Api_lr.Controllers
             using (var connection = new MySqlConnection(_connectionString))
             {
                 var brands = connection.Query<brand>("SELECT * FROM brands");
+
+                foreach (var brand in brands)
+                {
+                    // Запрос для получения автомобилей этого бренда
+                    var carsQuery = "SELECT * FROM cars WHERE brandId = @BrandId";
+                    var cars = connection.Query<car>(carsQuery, new { BrandId = brand.Id });
+                    brand.brands_car = cars.ToList();
+
+                    // Запрос для получения моделей этого бренда
+                    var modelsQuery = "SELECT * FROM models WHERE brandId = @BrandId";
+                    var models = connection.Query<inmemory.models.model>(modelsQuery, new { BrandId = brand.Id });
+                    brand.brands_model = models.ToList();
+                }
+
                 return Ok(brands);
             }
         }
