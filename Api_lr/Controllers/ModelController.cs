@@ -1,5 +1,6 @@
 ﻿using System.Collections.Generic;
 using System.Linq;
+using System.Text;
 using System.Threading.Tasks;
 using Api_lr.model;
 using Dapper;
@@ -43,36 +44,95 @@ namespace Api_lr.Controllers
             {
                 return BadRequest();
             }
-
             using (var connection = new MySqlConnection(_connectionString))
             {
                 connection.Open();
-                var query = "INSERT INTO models (Name, Description, Photo, brandId) VALUES (@Name, @Description, @Photo, @brandId)";
+
+                // Проверка наличия указанного brandId в базе данных
+                var brandExists = await connection.ExecuteScalarAsync<bool>("SELECT EXISTS(SELECT 1 FROM brands WHERE Id = @brandId)", new { brandId = model.brandId });
+
+                if (!brandExists)
+                {
+                    return BadRequest("Брэнда с таким id не существует");
+                }
+
+                // Получение текущего максимального id
+                var maxId = await connection.ExecuteScalarAsync<int>("SELECT MAX(Id) FROM models");
+
+                var newId = maxId + 1;
+
+                // Проставление нового id в модель
+                model.Id = newId;
+
+                var query = "INSERT INTO models (Id, Name, Description, Photo, brandId) VALUES (@Id, @Name, @Description, @Photo, @brandId)";
                 await connection.ExecuteAsync(query, model);
             }
-
             return Ok();
         }
 
         [HttpPut("{id}")]
         public async Task<ActionResult> UpdateModel(int id, [FromBody] special_model updatedModel)
         {
-            if (id != updatedModel.Id)
-            {
-                return BadRequest();
-            }
+            updatedModel.Id = id;
 
             using (var connection = new MySqlConnection(_connectionString))
             {
                 connection.Open();
+
                 var existingModel = await connection.QuerySingleOrDefaultAsync<special_model>("SELECT * FROM models WHERE Id = @Id", new { Id = id });
                 if (existingModel == null)
                 {
                     return NotFound();
                 }
 
-                var query = "UPDATE models SET Name = @Name, Description = @Description, Photo = @Photo, brandId = @brandId WHERE Id = @Id";
-                await connection.ExecuteAsync(query, updatedModel);
+                var queryBuilder = new StringBuilder("UPDATE models SET ");
+                var parameters = new DynamicParameters();
+
+                if (!string.IsNullOrEmpty(updatedModel.Name) && updatedModel.Name != existingModel.Name && updatedModel.Name != "string")
+                {
+                    queryBuilder.Append("Name = @Name, ");
+                    parameters.Add("Name", updatedModel.Name);
+                }
+                else
+                {
+                    parameters.Add("Name", existingModel.Name);
+                }
+
+                if (!string.IsNullOrEmpty(updatedModel.Description) && updatedModel.Description != existingModel.Description && updatedModel.Description != "string")
+                {
+                    queryBuilder.Append("Description = @Description, ");
+                    parameters.Add("Description", updatedModel.Description);
+                }
+                else
+                {
+                    parameters.Add("Description", existingModel.Description);
+                }
+
+                if (!string.IsNullOrEmpty(updatedModel.Photo) && updatedModel.Photo != existingModel.Photo && updatedModel.Photo != "string")
+                {
+                    queryBuilder.Append("Photo = @Photo, ");
+                    parameters.Add("Photo", updatedModel.Photo);
+                }
+                else
+                {
+                    parameters.Add("Photo", existingModel.Photo);
+                }
+
+                if (updatedModel.brandId != 0 && updatedModel.brandId != existingModel.brandId)
+                {
+                    queryBuilder.Append("brandId = @brandId, ");
+                    parameters.Add("brandId", updatedModel.brandId);
+                }
+                else
+                {
+                    parameters.Add("brandId", existingModel.brandId);
+                }
+
+                queryBuilder.Remove(queryBuilder.Length - 2, 2); // Удаление запятой и пробела в конце запроса
+                queryBuilder.Append(" WHERE Id = @Id");
+                parameters.Add("Id", id);
+
+                await connection.ExecuteAsync(queryBuilder.ToString(), parameters);
             }
 
             return Ok();

@@ -53,9 +53,22 @@ namespace Api_lr.Controllers
             {
                 connection.Open();
 
+                // Проверка наличия указанного brandId в базе данных
+                var brandExists = connection.ExecuteScalar<bool>("SELECT EXISTS(SELECT 1 FROM brands WHERE Id = @brandId)", new { brandId = car.brandId });
+                if (!brandExists)
+                {
+                    return BadRequest("Брэнда с таким id не существует");
+                }
+
+                // Проверка наличия указанного modelId в списке моделей выбранного бренда
+                var modelExists = connection.ExecuteScalar<bool>("SELECT EXISTS(SELECT 1 FROM models WHERE Id = @modelId AND brandId = @brandId)", new { modelId = car.modelId, brandId = car.brandId });
+                if (!modelExists)
+                {
+                    return BadRequest("Модели с таким id не существует в списке моделей выбранного бренда");
+                }
+
                 // Получаем максимальное значение Id из таблицы cars
                 int maxId = connection.ExecuteScalar<int>("SELECT MAX(Id) FROM cars");
-
                 // Увеличиваем значение Id на 1
                 int newId = maxId + 1;
 
@@ -63,6 +76,7 @@ namespace Api_lr.Controllers
                 connection.Execute("INSERT INTO cars (Id, Name, Description, Photo, Type, brandId, modelId) VALUES (@Id, @Name, @Description, @Photo, @Type, @brandId, @modelId)",
                     new { Id = newId, car.Name, car.Description, car.Photo, car.Type, car.brandId, car.modelId });
             }
+
             return Ok();
         }
 
