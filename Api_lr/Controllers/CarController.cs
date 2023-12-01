@@ -6,6 +6,7 @@ using MySqlConnector;
 using System.Collections.Generic;
 using System.Data;
 using System.Linq;
+using System.Text;
 
 namespace Api_lr.Controllers
 {
@@ -68,22 +69,61 @@ namespace Api_lr.Controllers
         [HttpPut("{id}")]
         public ActionResult UpdateCar(int id, [FromBody] car updatedCar)
         {
+            updatedCar.Id = id;
             if (id != updatedCar.Id)
             {
                 return BadRequest();
             }
-
             using (var connection = new MySqlConnection(_connectionString))
             {
                 connection.Open();
-                var existingCar = connection.QueryFirstOrDefault<car>("SELECT * FROM cars WHERE Id = @Id", new { Id = id });
+                var existingCar = connection.QueryFirstOrDefault<car>("SELECT * FROM cars WHERE Id = @id", new { id });
                 if (existingCar == null)
                 {
                     return NotFound();
                 }
-
-                connection.Execute("UPDATE cars SET Name = @Name, Description = @Description, Photo = @Photo, Type = @Type, brandId = @brandId, modelId = @modelId WHERE Id = @Id",
-                    new { updatedCar.Name, updatedCar.Description, updatedCar.Photo, updatedCar.Type, Id = id, updatedCar.brandId, updatedCar.modelId });
+                var queryBuilder = new StringBuilder("UPDATE cars SET ");
+                var parameters = new DynamicParameters();
+                if (!string.IsNullOrEmpty(updatedCar.Name) && updatedCar.Name != existingCar.Name && updatedCar.Name != "string")
+                {
+                    queryBuilder.Append("Name = @Name, ");
+                    parameters.Add("Name", updatedCar.Name);
+                }
+                else
+                {
+                    parameters.Add("ExistingName", existingCar.Name);
+                }
+                if (!string.IsNullOrEmpty(updatedCar.Description) && updatedCar.Description != existingCar.Description && updatedCar.Description != "string")
+                {
+                    queryBuilder.Append("Description = @Description, ");
+                    parameters.Add("Description", updatedCar.Description);
+                }
+                else
+                {
+                    parameters.Add("ExistingDescription", existingCar.Description);
+                }
+                if (!string.IsNullOrEmpty(updatedCar.Photo) && updatedCar.Photo != existingCar.Photo && updatedCar.Photo != "string")
+                {
+                    queryBuilder.Append("Photo = @Photo, ");
+                    parameters.Add("Photo", updatedCar.Photo);
+                }
+                else
+                {
+                    parameters.Add("ExistingPhoto", existingCar.Photo);
+                }
+                if (!string.IsNullOrEmpty(updatedCar.Type) && updatedCar.Type != existingCar.Type && updatedCar.Type != "string")
+                {
+                    queryBuilder.Append("Type = @Type, ");
+                    parameters.Add("Type", updatedCar.Type);
+                }
+                else
+                {
+                    parameters.Add("ExistingType", existingCar.Type);
+                }
+                queryBuilder.Remove(queryBuilder.Length - 2, 2); // Удаление запятой и пробела в конце запроса
+                queryBuilder.Append(" WHERE Id = @Id");
+                parameters.Add("Id", id);
+                connection.Execute(queryBuilder.ToString(), parameters);
             }
             return Ok();
         }
