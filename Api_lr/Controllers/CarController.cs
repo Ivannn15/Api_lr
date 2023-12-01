@@ -51,8 +51,16 @@ namespace Api_lr.Controllers
             using (var connection = new MySqlConnection(_connectionString))
             {
                 connection.Open();
-                connection.Execute("INSERT INTO cars (Name, Description, Photo, Type, brandId, modelId) VALUES (@Name, @Description, @Photo, @Type, @brandId, @modelId)",
-                    new { car.Name, car.Description, car.Photo, car.Type, car.brandId, car.modelId });
+
+                // Получаем максимальное значение Id из таблицы cars
+                int maxId = connection.ExecuteScalar<int>("SELECT MAX(Id) FROM cars");
+
+                // Увеличиваем значение Id на 1
+                int newId = maxId + 1;
+
+                // Вставляем новую запись с проставленным значением Id
+                connection.Execute("INSERT INTO cars (Id, Name, Description, Photo, Type, brandId, modelId) VALUES (@Id, @Name, @Description, @Photo, @Type, @brandId, @modelId)",
+                    new { Id = newId, car.Name, car.Description, car.Photo, car.Type, car.brandId, car.modelId });
             }
             return Ok();
         }
